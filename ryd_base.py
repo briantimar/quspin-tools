@@ -158,7 +158,6 @@ def get_nnZ_static_hcb(n, Jn, Jx, L, coup_list, bc='periodic'):
 def make_nnZ(n, Jn, Jx, coup_list, L, basis=None,bc='periodic', dtype=np.float64):
     """ return uniform 1d hamiltonian with interactions up to nth-nearest-neighbors. 
         coup_list = list of couplings [V1, ..., Vn] such that each pair of sites (i, i+n) has an interaction term V_n n_i n_i+n, where n are the on-site density operators. The single-site hamiltonian is
-        sum_i Jn n_i + Jx (b_i + b_i^dag)
        
         """
     check_bc(bc)
@@ -169,7 +168,17 @@ def make_nnZ(n, Jn, Jx, coup_list, L, basis=None,bc='periodic', dtype=np.float64
     static = get_nnZ_static_hcb(n, Jn, Jx, L, coup_list, bc=bc)
     dynamic = []
     return hamiltonian(static, dynamic, basis=basis, dtype=np.float64)
-        
+
+
+def get_fss_spin_static(Delta, Omega, V1, V2, L,bc='periodic' ):
+    """ implement fss hamiltonian in spin basis"""
+    Jx = -Omega /2
+    Jz = -(Delta - V1 - V2)/2
+    coup_list = [V1/4, V2/4]
+    coupz, coupx, coupzz = get_nnZ_couplings(2, Jz, Jx, coup_list,L,bc)
+    return [['x', coupx], ['z', coupz], ['zz', coupzz]]
+    
+
 def get_fss_static(Delta, Omega, V1, V2,L,bc='periodic'):
     """ static parameter list for the FSS model
         """
@@ -942,6 +951,7 @@ def get_sf_op(m,L,basis=None, check_symm=True, usez=False):
         static = [["zz", coupling_nn]]
     else:
         static = [ ["nn", coupling_nn] ]
+
     return hamiltonian(static, [], basis=basis,check_symm=check_symm)
 
 def get_psi_op(m, basis,check_symm=True,usez=True):

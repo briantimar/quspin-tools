@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Wed Apr 11 11:49:33 2018
@@ -38,9 +37,8 @@ def format_state(s):
     """Checks for array type and tries to convert to 1d array.
        Assumes a pure state, i.e. vector, s.
        
-       Returns: one-dimensional numpy array."""       
-    if not isinstance(s, np.ndarray):
-        raise TypeError("States must be implemented as numpy arrays")
+       Returns: one-dimensional numpy array.""" 
+    s = np.asarray(s)
     if s.ndim == 1:
         return s
     if s.ndim != 2:
@@ -209,7 +207,7 @@ def get_site_coupling(V, L,verbose=False):
         vprint(verbose,"scalar on-site coupling, will be uniform")
     return static
 
-def diagonalize_block(static, gen_basis, L, blockname,dtype=np.complex128,method='eigh',Ne=None,which='SA'):
+def diagonalize_block(static, gen_basis, L, blockname,dtype=np.complex128,method='eigh',Ne=None,which='SA', other_symm_dict=None):
     """diagonalize static hamiltonian by projecting onto blocks.
         Returns: a dictionary which maps
             k --> (e, s,proj)
@@ -223,6 +221,7 @@ def diagonalize_block(static, gen_basis, L, blockname,dtype=np.complex128,method
         method: how to obtain the eigenstuff (i.e. exact solver or sparse)
         Ne: if using the sparse solver, how many eigenpairs to compute
         which: if using the sparse solver, where to draw the pairs from the spectrum. See Quspin docs for eigsh()
+        other_symm_dict: if not None, diagonalizes the hamiltonian in the symmetry sector specified by this dictionary
        """
     methods = {'eigh': lambda h:h.eigh(), 'eigsh': lambda h: h.eigsh(k=Ne,which=which)}
     Nblock_lookup = {'kblock':L, 'pblock':2}
@@ -246,7 +245,10 @@ def diagonalize_block(static, gen_basis, L, blockname,dtype=np.complex128,method
         
     for q in range(Nblock):
         k=Eigenvalue_gen(q)
-        blockdict = get_blockdict(k)   
+        blockdict = get_blockdict(k)
+        if other_symm_dict is not None:
+            for k in other_symm_dict.keys():
+                blockdict[k] = other_symm_dict[k]
         basis =gen_basis(L,**blockdict)
         h=hamiltonian(static,[],basis=basis,dtype=dtype)
         e,s=get_eigs(h)
@@ -255,7 +257,7 @@ def diagonalize_block(static, gen_basis, L, blockname,dtype=np.complex128,method
     return eigs
 
 
-def diagonalize_kblock(static, gen_basis, L,dtype=np.complex128,method='eigh',Ne=None,which='SA'):
+def diagonalize_kblock(static, gen_basis, L,dtype=np.complex128,method='eigh',Ne=None,which='SA', other_symm_dict=None):
     """diagonalize static hamiltonian by projecting onto k-blocks.
         Returns: a dictionary which maps
             k --> (e, s,proj)
@@ -270,7 +272,7 @@ def diagonalize_kblock(static, gen_basis, L,dtype=np.complex128,method='eigh',Ne
         which: if using the sparse solver, where to draw the pairs from the spectrum. See Quspin docs for eigsh()
        """
     blockname = 'kblock'
-    return diagonalize_block(static, gen_basis, L, blockname,dtype=dtype,method=method,Ne=Ne,which=which)
+    return diagonalize_block(static, gen_basis, L, blockname,dtype=dtype,method=method,Ne=Ne,which=which,other_symm_dict=other_symm_dict)
 
 def diagonalize_pblock(static, gen_basis, L, dtype=np.complex128, method='eigh', Ne=None, which='SA'):
     blockname='pblock'
@@ -353,13 +355,15 @@ def get_all(eigdict):
     return np.array(e),s
 
 
-def spectrum_by_k(eigdict,N=2,symm=True):
+def spectrum_by_k(eigdict,N=2,symm=True, fig=None, ax=None, style='kx', label=''):
     """ Plot the spectrum of a hamiltonian which has been k-diagonalized.
         eigdict = dictionary mapping k --> (e,s,proj)
         N = number of eigvals per k to plot.
         symm: if True, use a symmetric brillouin zone"""
     import matplotlib.pyplot as plt
-    fig,ax=plt.subplots()
+    if ax is None:
+        fig,ax=plt.subplots()
+
     L=len(eigdict.keys())
     def get_kBZ(k):
         if symm:
@@ -371,7 +375,10 @@ def spectrum_by_k(eigdict,N=2,symm=True):
         e=eigdict[k][0]
         e=e[:N]
         x=kBZ * np.ones(N)
-        ax.plot(x, e, 'kx')
+        if k==0:
+            ax.plot(x, e, style,label=label)
+        else:
+            ax.plot(x, e, style)
     ax.set_xlabel('k')
     return fig,ax
 
@@ -409,9 +416,9 @@ class BlockedHamiltonian(object):
     
     
     
-def make_KBlockedHamiltonian(static, gen_basis, L,dtype=np.complex128,method='eigh',Ne=None,which='SA'):
+def make_KBlockedHamiltonian(static, gen_basis, L,dtype=np.complex128,method='eigh',Ne=None,which='SA',other_symm_dict=None):
     """ returns block-hamiltonian object, using translation symmetry."""
-    eigdict = diagonalize_kblock(static, gen_basis, L, dtype=dtype,method=method,Ne=Ne,which=which)
+    eigdict = diagonalize_kblock(static, gen_basis, L, dtype=dtype,method=method,Ne=Ne,which=which,other_symm_dict=other_symm_dict)
     return BlockedHamiltonian(eigdict)
     
 def make_PBlockedHamiltonian(static, gen_basis, L,dtype=np.complex128,method='eigh',Ne=None,which='SA'):
